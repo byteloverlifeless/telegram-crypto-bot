@@ -473,65 +473,30 @@ bot.catch((err, ctx) => {
     ctx.reply('❌ Bir hata oluştu. Lütfen daha sonra deneyin.');
 });
 
-// Webhook veya polling ile başlatma
-const PORT = process.env.PORT || 3000;
+// PORT çakışmasını önlemek için SADECE POLLING kullan
+console.log('=== BOT BAŞLATILIYOR (POLLING MOD) ===');
 
-console.log('=== BOT BAŞLATILIYOR ===');
-
-// Render ortamında webhook, local'de polling
-if (process.env.RENDER_EXTERNAL_URL) {
-    // Production - Webhook
-    bot.launch({
-        webhook: {
-            domain: process.env.RENDER_EXTERNAL_URL,
-            port: PORT
-        }
-    }).then(() => {
-        console.log('✅ Bot webhook ile başlatıldı');
-        console.log('🌐 Domain:', process.env.RENDER_EXTERNAL_URL);
-    });
-} else {
-    // Development - Polling
-    bot.launch().then(() => {
-        console.log('✅ Bot polling ile başlatıldı');
-    });
-}
-
-// Webhook veya polling ile başlatma
-const PORT = process.env.PORT || 3000;
-
-console.log('=== BOT BAŞLATILIYOR ===');
-
-// Sadece bir yöntem kullanacağız - Webhook YERİNE HTTP server kullan
-if (process.env.RENDER_EXTERNAL_URL) {
-    // Production - Sadece HTTP server ile başlat
-    const http = require('http');
-    const server = http.createServer((req, res) => {
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('🤖 AI Crypto Bot is running...');
-    });
-
-    server.listen(PORT, () => {
-        console.log(`🚀 HTTP Server running on port ${PORT}`);
-        
-        // Botu polling ile başlat (webhook YERİNE)
-        bot.launch().then(() => {
-            console.log('✅ Bot polling ile başlatıldı');
-            console.log('🌐 External URL:', process.env.RENDER_EXTERNAL_URL);
-        }).catch(error => {
-            console.error('❌ Bot başlatılamadı:', error);
-            process.exit(1);
-        });
-    });
-} else {
-    // Development - Normal polling
-    bot.launch().then(() => {
-        console.log('✅ Bot development modda başlatıldı');
-    }).catch(error => {
+bot.launch()
+    .then(() => {
+        console.log('✅ Bot başarıyla çalışıyor!');
+        console.log('📢 Kanal:', process.env.CHANNEL_USERNAME);
+    })
+    .catch(error => {
         console.error('❌ Bot başlatılamadı:', error);
         process.exit(1);
     });
-}
+
+// Render için basit HTTP server (farklı portta)
+const http = require('http');
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('🤖 AI Crypto Bot is running...');
+});
+
+// Farklı port kullanarak çakışmayı önle
+server.listen(8080, () => {
+    console.log('🌐 HTTP server port 8080de hazır');
+});
 
 // Graceful shutdown
 process.once('SIGINT', () => {
@@ -545,3 +510,5 @@ process.once('SIGTERM', () => {
     bot.stop('SIGTERM');
     process.exit(0);
 });
+
+console.log('✅ Bot başlatma tamamlandı!');
