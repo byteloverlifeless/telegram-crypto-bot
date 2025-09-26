@@ -2,10 +2,10 @@
   "name": "telegram-crypto-bot",
   "version": "1.0.0",
   "description": "Cryptocurrency Telegram Bot",
-  "main": "index.js",
+  "main": "bot.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node bot.js",
+    "dev": "nodemon bot.js"
   },
   "dependencies": {
     "telegraf": "^4.16.3",
