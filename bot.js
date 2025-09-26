@@ -497,16 +497,41 @@ if (process.env.RENDER_EXTERNAL_URL) {
     });
 }
 
-// HTTP server (Render için gerekli)
-const http = require('http');
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('🤖 AI Crypto Bot is running...');
-});
+// Webhook veya polling ile başlatma
+const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, () => {
-    console.log(`🚀 HTTP Server running on port ${PORT}`);
-});
+console.log('=== BOT BAŞLATILIYOR ===');
+
+// Sadece bir yöntem kullanacağız - Webhook YERİNE HTTP server kullan
+if (process.env.RENDER_EXTERNAL_URL) {
+    // Production - Sadece HTTP server ile başlat
+    const http = require('http');
+    const server = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('🤖 AI Crypto Bot is running...');
+    });
+
+    server.listen(PORT, () => {
+        console.log(`🚀 HTTP Server running on port ${PORT}`);
+        
+        // Botu polling ile başlat (webhook YERİNE)
+        bot.launch().then(() => {
+            console.log('✅ Bot polling ile başlatıldı');
+            console.log('🌐 External URL:', process.env.RENDER_EXTERNAL_URL);
+        }).catch(error => {
+            console.error('❌ Bot başlatılamadı:', error);
+            process.exit(1);
+        });
+    });
+} else {
+    // Development - Normal polling
+    bot.launch().then(() => {
+        console.log('✅ Bot development modda başlatıldı');
+    }).catch(error => {
+        console.error('❌ Bot başlatılamadı:', error);
+        process.exit(1);
+    });
+}
 
 // Graceful shutdown
 process.once('SIGINT', () => {
@@ -520,5 +545,3 @@ process.once('SIGTERM', () => {
     bot.stop('SIGTERM');
     process.exit(0);
 });
-
-console.log('✅ Bot başlatma komutları tamamlandı!');
