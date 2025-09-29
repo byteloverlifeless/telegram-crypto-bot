@@ -1,7 +1,7 @@
 {
-  "name": "ai-crypto-bot",
+  "name": "ai-crypto-stock-bot",
   "version": "1.0.0",
-  "description": "AI Powered Cryptocurrency Telegram Bot",
+  "description": "AI Powered Crypto & Stock Analysis Bot",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
