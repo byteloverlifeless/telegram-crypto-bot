@@ -46,9 +46,7 @@ const TEST_PRICES = {
     'ripple': { usd: 0.58, eur: 0.53, try: 18.6, usd_24h_change: -0.3, usd_market_cap: 32000000000 },
     'cardano': { usd: 0.45, eur: 0.41, try: 14.5, usd_24h_change: 1.1, usd_market_cap: 16000000000 },
     'dogecoin': { usd: 0.12, eur: 0.11, try: 3.9, usd_24h_change: 2.7, usd_market_cap: 18000000000 },
-    'polkadot': { usd: 6.8, eur: 6.2, try: 220, usd_24h_change: 0.8, usd_market_cap: 8900000000 },
-    'litecoin': { usd: 82, eur: 75, try: 2650, usd_24h_change: 0.9, usd_market_cap: 6100000000 },
-    'chainlink': { usd: 18, eur: 16.5, try: 580, usd_24h_change: 1.4, usd_market_cap: 10500000000 }
+    'polkadot': { usd: 6.8, eur: 6.2, try: 220, usd_24h_change: 0.8, usd_market_cap: 8900000000 }
 };
 
 // Crypto fiyat API'si
@@ -79,7 +77,7 @@ async function getCryptoPrice(cryptoId) {
     }
 }
 
-// AI ile analiz yap - DÜZELTİLMİŞ
+// AI ile analiz yap
 async function getAIAnalysis(cryptoName, priceData) {
     if (!model) {
         return `🤖 **${cryptoName.toUpperCase()} AI Analizi**\n\n` +
@@ -95,8 +93,6 @@ async function getAIAnalysis(cryptoName, priceData) {
         
         Mevcut veriler:
         - USD Fiyat: $${priceData.usd?.toLocaleString() || 'N/A'}
-        - EUR Fiyat: €${priceData.eur?.toLocaleString() || 'N/A'}
-        - TRY Fiyat: ₺${priceData.try?.toLocaleString() || 'N/A'}
         - 24s Değişim: %${priceData.usd_24h_change?.toFixed(2) || 'N/A'}
         - Market Cap: $${(priceData.usd_market_cap / 1e9)?.toFixed(1) || 'N/A'}B
         
@@ -119,7 +115,7 @@ async function getAIAnalysis(cryptoName, priceData) {
     }
 }
 
-// Trend coinleri getir - DÜZELTİLMİŞ
+// Trend coinleri getir
 async function getTrendingCoins() {
     try {
         console.log('🚀 Trend coinler alınıyor...');
@@ -141,15 +137,12 @@ async function getTrendingCoins() {
         }
     } catch (error) {
         console.error('Trending coins hatası, test verileri kullanılıyor:', error.message);
-        // Daha iyi test trend verileri
         return [
             { item: { id: 'bitcoin', name: 'Bitcoin', symbol: 'btc' } },
             { item: { id: 'ethereum', name: 'Ethereum', symbol: 'eth' } },
             { item: { id: 'solana', name: 'Solana', symbol: 'sol' } },
             { item: { id: 'binancecoin', name: 'Binance Coin', symbol: 'bnb' } },
-            { item: { id: 'ripple', name: 'XRP', symbol: 'xrp' } },
-            { item: { id: 'cardano', name: 'Cardano', symbol: 'ada' } },
-            { item: { id: 'dogecoin', name: 'Dogecoin', symbol: 'doge' } }
+            { item: { id: 'ripple', name: 'XRP', symbol: 'xrp' } }
         ];
     }
 }
@@ -176,14 +169,83 @@ async function searchCrypto(query) {
             { id: 'solana', name: 'Solana', symbol: 'sol' },
             { id: 'ripple', name: 'XRP', symbol: 'xrp' },
             { id: 'cardano', name: 'Cardano', symbol: 'ada' },
-            { id: 'dogecoin', name: 'Dogecoin', symbol: 'doge' },
-            { id: 'polkadot', name: 'Polkadot', symbol: 'dot' }
+            { id: 'dogecoin', name: 'Dogecoin', symbol: 'doge' }
         ];
         
         return allCoins.filter(coin => 
             coin.name.toLowerCase().includes(query.toLowerCase()) || 
             coin.symbol.toLowerCase().includes(query.toLowerCase())
         ).slice(0, 5);
+    }
+}
+
+// KANAL FONKSİYONLARI
+async function sendToChannel(message) {
+    try {
+        const channel = process.env.CHANNEL_USERNAME || '@coinvekupon';
+        if (channel) {
+            await bot.telegram.sendMessage(channel, message, {
+                parse_mode: 'Markdown'
+            });
+            console.log('✅ Kanal mesajı gönderildi:', channel);
+            return true;
+        }
+    } catch (error) {
+        console.error('❌ Kanal mesajı hatası:', error.message);
+        return false;
+    }
+    return false;
+}
+
+// Günlük market özeti gönder
+async function sendDailyMarketUpdate() {
+    try {
+        const coins = ['bitcoin', 'ethereum', 'solana'];
+        let message = `📊 **Günlük Market Özeti**\n\n`;
+        
+        for (const coinId of coins) {
+            const priceData = await getCryptoPrice(coinId);
+            if (priceData) {
+                const change = priceData.usd_24h_change || 0;
+                const changeIcon = change >= 0 ? '🟢' : '🔴';
+                const coinName = coinId.charAt(0).toUpperCase() + coinId.slice(1);
+                message += `• ${coinName}: $${priceData.usd?.toLocaleString()} ${changeIcon} ${change.toFixed(2)}%\n`;
+            }
+        }
+        
+        message += '\n🔔 @CryptoAIBot ile anlık fiyat takibi yapın!';
+        return await sendToChannel(message);
+    } catch (error) {
+        console.error('Günlük özet hatası:', error);
+        return false;
+    }
+}
+
+// Trend coinleri kanala gönder
+async function sendTrendingToChannel() {
+    try {
+        const trending = await getTrendingCoins();
+        if (trending && trending.length > 0) {
+            let message = `🚀 **Günün Trend Coinleri**\n\n`;
+            
+            for (let i = 0; i < Math.min(3, trending.length); i++) {
+                const coin = trending[i];
+                const priceData = await getCryptoPrice(coin.item.id);
+                
+                if (priceData) {
+                    const change = priceData.usd_24h_change || 0;
+                    const changeIcon = change >= 0 ? '📈' : '📉';
+                    message += `• **${coin.item.name}** (${coin.item.symbol.toUpperCase()})\n`;
+                    message += `  💵 $${priceData.usd?.toLocaleString()} ${changeIcon} ${change.toFixed(2)}%\n\n`;
+                }
+            }
+            
+            message += '🤖 Detaylı analiz için: @CryptoAIBot';
+            return await sendToChannel(message);
+        }
+    } catch (error) {
+        console.error('Trend kanal gönderim hatası:', error);
+        return false;
     }
 }
 
@@ -235,19 +297,24 @@ bot.command('help', (ctx) => {
 
 **Temel Komutlar:**
 /start - Botu başlat
-/help - Yardım menüsü
+/help - Yardım
 
-**Fiyat Sorgulama:**
+**Fiyat Komutları:**
 /bitcoin - Bitcoin fiyatı
 /ethereum - Ethereum fiyatı
-/price <coin> - Özel coin fiyatı
+/price <coin> - Coin fiyatı
 /trend - Trend coinler
 
 **AI Analiz:**
-/ai <coin> - Gemini AI analizi
+/ai <coin> - AI analizi
 
 **Arama:**
 /search <coin> - Coin arama
+
+**Kanal Komutları (Yöneticiler):**
+/post <mesaj> - Kanal mesajı gönder
+/sendmarket - Market özeti gönder  
+/sendtrend - Trend coinleri gönder
 
 **Örnekler:**
 /price solana
@@ -255,7 +322,7 @@ bot.command('help', (ctx) => {
 /search doge
 /trend
 
-💎 **Kanal:** ${process.env.CHANNEL_USERNAME || '@coinvekupon'}`,
+💎 **Kanalımız:** ${process.env.CHANNEL_USERNAME || '@coinvekupon'}`,
     { parse_mode: 'Markdown' });
 });
 
@@ -305,7 +372,7 @@ ${changeIcon} **24s Değişim:** ${change.toFixed(2)}%
     ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
-// AI Analiz komutu - DÜZELTİLMİŞ
+// AI Analiz komutu
 bot.command('ai', async (ctx) => {
     const args = ctx.message.text.split(' ');
     if (args.length < 2) {
@@ -324,7 +391,6 @@ bot.command('ai', async (ctx) => {
         const actualCoinId = searchResults[0].id;
         const priceData = await getCryptoPrice(actualCoinId);
 
-        // AI analizini al
         const analysis = await getAIAnalysis(coinName, priceData);
         
         ctx.reply(analysis, { parse_mode: 'Markdown' });
@@ -335,7 +401,7 @@ bot.command('ai', async (ctx) => {
     }
 });
 
-// Trend coinler - TAMAMEN DÜZELTİLMİŞ
+// Trend coinler
 bot.command('trend', async (ctx) => {
     try {
         await ctx.sendChatAction('typing');
@@ -347,7 +413,6 @@ bot.command('trend', async (ctx) => {
 
         let message = `🚀 **Trend Coinler (24s)**\n\n`;
         
-        // İlk 5 coin için fiyat al
         for (let i = 0; i < Math.min(5, trending.length); i++) {
             const coin = trending[i];
             const priceData = await getCryptoPrice(coin.item.id);
@@ -358,9 +423,6 @@ bot.command('trend', async (ctx) => {
                 
                 message += `• **${coin.item.name}** (${coin.item.symbol.toUpperCase()})\n`;
                 message += `  💵 $${priceData.usd?.toLocaleString() || 'N/A'} ${changeIcon} ${change.toFixed(2)}%\n\n`;
-            } else {
-                message += `• **${coin.item.name}** (${coin.item.symbol.toUpperCase()})\n`;
-                message += `  💵 Fiyat alınamadı\n\n`;
             }
         }
 
@@ -438,7 +500,55 @@ ${changeIcon} **24s Değişim:** ${change.toFixed(2)}%
     ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
-// Buton işlemleri - Trend butonu düzeltildi
+// KANAL KOMUTLARI
+bot.command('post', async (ctx) => {
+    try {
+        const messageText = ctx.message.text.replace('/post ', '');
+        if (messageText.length < 5) {
+            return ctx.reply('❌ Mesaj çok kısa! En az 5 karakter girin.');
+        }
+
+        const success = await sendToChannel(messageText);
+        if (success) {
+            ctx.reply('✅ Mesaj kanala gönderildi!');
+        } else {
+            ctx.reply('❌ Kanal mesajı gönderilemedi. Bot kanal yöneticisi mi?');
+        }
+    } catch (error) {
+        console.error('Post komut hatası:', error);
+        ctx.reply('❌ Mesaj gönderilirken hata oluştu.');
+    }
+});
+
+bot.command('sendmarket', async (ctx) => {
+    try {
+        const success = await sendDailyMarketUpdate();
+        if (success) {
+            ctx.reply('✅ Market özeti kanala gönderildi!');
+        } else {
+            ctx.reply('❌ Market özeti gönderilemedi. Bot kanal yöneticisi mi?');
+        }
+    } catch (error) {
+        console.error('Sendmarket komut hatası:', error);
+        ctx.reply('❌ Market özeti gönderilirken hata oluştu.');
+    }
+});
+
+bot.command('sendtrend', async (ctx) => {
+    try {
+        const success = await sendTrendingToChannel();
+        if (success) {
+            ctx.reply('✅ Trend coinler kanala gönderildi!');
+        } else {
+            ctx.reply('❌ Trend coinler gönderilemedi. Bot kanal yöneticisi mi?');
+        }
+    } catch (error) {
+        console.error('Sendtrend komut hatası:', error);
+        ctx.reply('❌ Trend coinler gönderilirken hata oluştu.');
+    }
+});
+
+// Buton işlemleri
 bot.hears('💰 Bitcoin', async (ctx) => {
     await ctx.sendChatAction('typing');
     const btcPrice = await getCryptoPrice('bitcoin');
@@ -497,7 +607,84 @@ bot.hears('🤖 AI Analiz', (ctx) => {
     { parse_mode: 'Markdown' });
 });
 
-// Diğer butonlar aynı...
+bot.hears('🔍 Coin Ara', (ctx) => {
+    ctx.reply(`🔍 **Coin Arama:**
+    
+/search bitcoin - Bitcoin ara
+/search ethereum - Ethereum ara
+/search doge - Dogecoin ara
+
+💡 Örnek: /search bitcoin
+
+🔎 Coin'i bulduktan sonra fiyatını görmek için /price kullanın.`,
+    { parse_mode: 'Markdown' });
+});
+
+bot.hears('📊 Market', async (ctx) => {
+    await ctx.sendChatAction('typing');
+    
+    const coins = ['bitcoin', 'ethereum', 'binancecoin'];
+    let message = '📊 **Piyasa Özeti**\n\n';
+    
+    for (const coinId of coins) {
+        const priceData = await getCryptoPrice(coinId);
+        if (priceData) {
+            const change = priceData.usd_24h_change || 0;
+            const changeIcon = change >= 0 ? '🟢' : '🔴';
+            const coinName = coinId === 'binancecoin' ? 'BNB' : coinId.charAt(0).toUpperCase() + coinId.slice(1);
+            message += `• ${coinName}: $${priceData.usd?.toLocaleString()} ${changeIcon} ${change.toFixed(2)}%\n`;
+        }
+    }
+    
+    message += '\n🔍 Detaylar için coin adını yazın.';
+    ctx.reply(message, { parse_mode: 'Markdown' });
+});
+
+bot.hears('📢 Kanalımız', (ctx) => {
+    ctx.reply(`📢 **Kripto & Vip Sinyal Kanalımız:**
+    
+${process.env.CHANNEL_USERNAME || 'https://t.me/coinvekupon'}
+
+💎 VIP sinyaller ve özel analizler için takipte kalın!
+
+🤖 **Kanal Komutları:**
+/post <mesaj> - Kanal mesajı gönder
+/sendmarket - Market özeti gönder
+/sendtrend - Trend coinleri gönder`,
+    { parse_mode: 'Markdown' });
+});
+
+bot.hears('ℹ️ Yardım', (ctx) => {
+    const aiStatus = model ? 'Aktif ✅' : 'Devre Dışı ❌';
+    
+    ctx.reply(`🤖 **Yardım Menüsü**
+
+**AI Durumu:** ${aiStatus}
+
+**Temel Komutlar:**
+/start - Botu başlat
+/help - Yardım
+
+**Fiyat Komutları:**
+/bitcoin - Bitcoin fiyatı
+/ethereum - Ethereum fiyatı
+/price <coin> - Özel coin fiyatı
+/trend - Trend coinler
+
+**AI Komutları:**
+/ai <coin> - AI analizi
+
+**Arama:**
+/search <coin> - Coin arama
+
+**Kanal Komutları:**
+/post <mesaj> - Kanal mesajı gönder
+/sendmarket - Market özeti gönder  
+/sendtrend - Trend coinleri gönder
+
+💎 **Kanal:** ${process.env.CHANNEL_USERNAME || '@coinvekupon'}`,
+    { parse_mode: 'Markdown' });
+});
 
 // Hata yakalama
 bot.catch((err, ctx) => {
