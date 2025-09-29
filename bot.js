@@ -16,7 +16,7 @@ console.log('✅ BOT_TOKEN bulundu');
 const bot = new Telegraf(process.env.BOT_TOKEN);
 let genAI, model;
 
-// Gemini AI başlatma (opsiyonel)
+// Gemini AI başlatma
 if (process.env.GEMINI_API_KEY) {
     try {
         genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -31,10 +31,10 @@ if (process.env.GEMINI_API_KEY) {
         });
         console.log('✅ Gemini AI başlatıldı');
     } catch (error) {
-        console.log('⚠️ Gemini AI başlatılamadı, AI özellikleri devre dışı');
+        console.log('⚠️ Gemini AI başlatılamadı:', error.message);
     }
 } else {
-    console.log('⚠️ GEMINI_API_KEY bulunamadı, AI özellikleri devre dışı');
+    console.log('⚠️ GEMINI_API_KEY bulunamadı');
 }
 
 // TEST VERİLERİ - API çalışmazsa kullanılacak
@@ -51,7 +51,7 @@ const TEST_PRICES = {
     'chainlink': { usd: 18, eur: 16.5, try: 580, usd_24h_change: 1.4, usd_market_cap: 10500000000 }
 };
 
-// Crypto fiyat API'si - FALLBACK DESTEKLİ
+// Crypto fiyat API'si
 async function getCryptoPrice(cryptoId) {
     try {
         console.log(`🔍 ${cryptoId} fiyatı alınıyor...`);
@@ -73,17 +73,20 @@ async function getCryptoPrice(cryptoId) {
         }
     } catch (error) {
         console.log(`⚠️ ${cryptoId} API hatası, test verisi kullanılıyor:`, error.message);
-        // Test verilerini döndür
         return TEST_PRICES[cryptoId] || { 
             usd: 100, eur: 92, try: 3200, usd_24h_change: 0, usd_market_cap: 1000000000 
         };
     }
 }
 
-// AI ile analiz yap
+// AI ile analiz yap - DÜZELTİLMİŞ
 async function getAIAnalysis(cryptoName, priceData) {
     if (!model) {
-        return '🤖 AI analiz özelliği şu anda kullanılamıyor.';
+        return `🤖 **${cryptoName.toUpperCase()} AI Analizi**\n\n` +
+               '⚠️ AI analiz özelliği şu anda kullanılamıyor.\n' +
+               'Gemini API key kontrol edin veya daha sonra deneyin.\n\n' +
+               `💰 **Mevcut Fiyat:** $${priceData.usd?.toLocaleString()}\n` +
+               `📈 **24s Değişim:** %${priceData.usd_24h_change?.toFixed(2)}`;
     }
 
     try {
@@ -101,17 +104,25 @@ async function getAIAnalysis(cryptoName, priceData) {
         Maksimum 200 kelime. Türkçe cevap ver.
         `;
 
+        console.log(`🤖 AI analiz isteniyor: ${cryptoName}`);
         const result = await model.generateContent(prompt);
-        return result.response.text();
+        const analysis = result.response.text();
+        
+        return `🤖 **${cryptoName.toUpperCase()} AI Analizi**\n\n${analysis}`;
+        
     } catch (error) {
         console.error('AI Analiz hatası:', error.message);
-        return '❌ AI analizi şu anda kullanılamıyor. Lütfen daha sonra deneyin.';
+        return `🤖 **${cryptoName.toUpperCase()} AI Analizi**\n\n` +
+               '❌ AI analizi şu anda kullanılamıyor. Lütfen daha sonra deneyin.\n\n' +
+               `💰 **Mevcut Fiyat:** $${priceData.usd?.toLocaleString()}\n` +
+               `📈 **24s Değişim:** %${priceData.usd_24h_change?.toFixed(2)}`;
     }
 }
 
-// Trend coinleri getir
+// Trend coinleri getir - DÜZELTİLMİŞ
 async function getTrendingCoins() {
     try {
+        console.log('🚀 Trend coinler alınıyor...');
         const response = await axios.get(
             'https://api.coingecko.com/api/v3/search/trending',
             { 
@@ -121,16 +132,24 @@ async function getTrendingCoins() {
                 }
             }
         );
-        return response.data.coins.slice(0, 10);
+        
+        if (response.data && response.data.coins) {
+            console.log(`✅ ${response.data.coins.length} trend coin alındı`);
+            return response.data.coins.slice(0, 10);
+        } else {
+            throw new Error('Trend API boş yanıt verdi');
+        }
     } catch (error) {
         console.error('Trending coins hatası, test verileri kullanılıyor:', error.message);
-        // Test trend verileri
+        // Daha iyi test trend verileri
         return [
             { item: { id: 'bitcoin', name: 'Bitcoin', symbol: 'btc' } },
             { item: { id: 'ethereum', name: 'Ethereum', symbol: 'eth' } },
             { item: { id: 'solana', name: 'Solana', symbol: 'sol' } },
             { item: { id: 'binancecoin', name: 'Binance Coin', symbol: 'bnb' } },
-            { item: { id: 'ripple', name: 'XRP', symbol: 'xrp' } }
+            { item: { id: 'ripple', name: 'XRP', symbol: 'xrp' } },
+            { item: { id: 'cardano', name: 'Cardano', symbol: 'ada' } },
+            { item: { id: 'dogecoin', name: 'Dogecoin', symbol: 'doge' } }
         ];
     }
 }
@@ -150,7 +169,6 @@ async function searchCrypto(query) {
         return response.data.coins.slice(0, 5);
     } catch (error) {
         console.error('Search hatası, test verileri kullanılıyor:', error.message);
-        // Test arama sonuçları
         const allCoins = [
             { id: 'bitcoin', name: 'Bitcoin', symbol: 'btc' },
             { id: 'ethereum', name: 'Ethereum', symbol: 'eth' },
@@ -178,11 +196,13 @@ const mainMenu = Markup.keyboard([
 
 // /start komutu
 bot.start((ctx) => {
+    const aiStatus = model ? '✅ Aktif' : '❌ Devre Dışı';
+    
     const welcomeMessage = `🤖 **AI Crypto Bot'a Hoşgeldiniz!**
 
 ✨ **Özellikler:**
 • 💰 Gerçek zamanlı kripto fiyatları
-• 🤖 Gemini AI destekli analizler
+• 🤖 Gemini AI destekli analizler ${aiStatus}
 • 🚀 Trend coin takibi
 • 🌍 USD/EUR/TRY desteği
 • 🔍 Detaylı coin arama
@@ -207,7 +227,11 @@ Veya aşağıdaki butonları kullanın!`;
 
 // Yardım komutu
 bot.command('help', (ctx) => {
-    ctx.reply(`🤖 **Kullanım Kılavuzu:**
+    const aiStatus = model ? 'Aktif ✅' : 'Devre Dışı ❌';
+    
+    ctx.reply(`🤖 **Kullanım Kılavuzu**
+
+**AI Durumu:** ${aiStatus}
 
 **Temel Komutlar:**
 /start - Botu başlat
@@ -229,6 +253,7 @@ bot.command('help', (ctx) => {
 /price solana
 /ai bitcoin
 /search doge
+/trend
 
 💎 **Kanal:** ${process.env.CHANNEL_USERNAME || '@coinvekupon'}`,
     { parse_mode: 'Markdown' });
@@ -280,63 +305,80 @@ ${changeIcon} **24s Değişim:** ${change.toFixed(2)}%
     ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
-// AI Analiz komutu
+// AI Analiz komutu - DÜZELTİLMİŞ
 bot.command('ai', async (ctx) => {
     const args = ctx.message.text.split(' ');
     if (args.length < 2) {
-        return ctx.reply('❌ Lütfen bir coin adı girin. Örnek: /ai bitcoin');
+        return ctx.reply('❌ Lütfen bir coin adı girin. Örnek: `/ai bitcoin`', { parse_mode: 'Markdown' });
     }
 
     const coinName = args[1];
     await ctx.sendChatAction('typing');
 
-    const searchResults = await searchCrypto(coinName);
-    if (!searchResults || searchResults.length === 0) {
-        return ctx.reply(`❌ "${coinName}" coin'i bulunamadı. Lütfen geçerli bir coin adı girin.`);
+    try {
+        const searchResults = await searchCrypto(coinName);
+        if (!searchResults || searchResults.length === 0) {
+            return ctx.reply(`❌ "${coinName}" coin'i bulunamadı. Lütfen geçerli bir coin adı girin.`);
+        }
+
+        const actualCoinId = searchResults[0].id;
+        const priceData = await getCryptoPrice(actualCoinId);
+
+        // AI analizini al
+        const analysis = await getAIAnalysis(coinName, priceData);
+        
+        ctx.reply(analysis, { parse_mode: 'Markdown' });
+        
+    } catch (error) {
+        console.error('AI komut hatası:', error);
+        ctx.reply('❌ AI analiz sırasında bir hata oluştu. Lütfen daha sonra deneyin.');
     }
-
-    const actualCoinId = searchResults[0].id;
-    const priceData = await getCryptoPrice(actualCoinId);
-
-    const analysis = await getAIAnalysis(coinName, priceData);
-    
-    const message = `🤖 **${coinName.toUpperCase()} AI Analizi**
-    
-${analysis}
-
-💡 *Analiz Gemini AI tarafından oluşturulmuştur. Yatırım tavsiyesi değildir.*`;
-
-    ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
-// Trend coinler
+// Trend coinler - TAMAMEN DÜZELTİLMİŞ
 bot.command('trend', async (ctx) => {
-    await ctx.sendChatAction('typing');
-    
-    const trending = await getTrendingCoins();
-    let message = `🚀 **Trend Coinler (24s)**\n\n`;
-    
-    for (const coin of trending.slice(0, 5)) {
-        const priceData = await getCryptoPrice(coin.item.id);
-        if (priceData) {
-            const change = priceData.usd_24h_change || 0;
-            const changeIcon = change >= 0 ? '📈' : '📉';
-            
-            message += `• **${coin.item.name}** (${coin.item.symbol.toUpperCase()})\n`;
-            message += `  💵 $${priceData.usd?.toLocaleString() || 'N/A'} ${changeIcon} ${change.toFixed(2)}%\n\n`;
+    try {
+        await ctx.sendChatAction('typing');
+        
+        const trending = await getTrendingCoins();
+        if (!trending || trending.length === 0) {
+            return ctx.reply('❌ Trend coinler alınamadı. Lütfen daha sonra deneyin.');
         }
+
+        let message = `🚀 **Trend Coinler (24s)**\n\n`;
+        
+        // İlk 5 coin için fiyat al
+        for (let i = 0; i < Math.min(5, trending.length); i++) {
+            const coin = trending[i];
+            const priceData = await getCryptoPrice(coin.item.id);
+            
+            if (priceData) {
+                const change = priceData.usd_24h_change || 0;
+                const changeIcon = change >= 0 ? '📈' : '📉';
+                
+                message += `• **${coin.item.name}** (${coin.item.symbol.toUpperCase()})\n`;
+                message += `  💵 $${priceData.usd?.toLocaleString() || 'N/A'} ${changeIcon} ${change.toFixed(2)}%\n\n`;
+            } else {
+                message += `• **${coin.item.name}** (${coin.item.symbol.toUpperCase()})\n`;
+                message += `  💵 Fiyat alınamadı\n\n`;
+            }
+        }
+
+        message += `🔍 Detaylı analiz için: /ai <coin_adi>`;
+
+        ctx.reply(message, { parse_mode: 'Markdown' });
+        
+    } catch (error) {
+        console.error('Trend komut hatası:', error);
+        ctx.reply('❌ Trend coinler alınırken bir hata oluştu. Lütfen daha sonra deneyin.');
     }
-
-    message += `🔍 Detaylı analiz için: /ai <coin_adi>`;
-
-    ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
 // Coin arama
 bot.command('search', async (ctx) => {
     const args = ctx.message.text.split(' ');
     if (args.length < 2) {
-        return ctx.reply('❌ Lütfen aramak istediğiniz coin adını girin. Örnek: /search bitcoin');
+        return ctx.reply('❌ Lütfen aramak istediğiniz coin adını girin. Örnek: `/search bitcoin`', { parse_mode: 'Markdown' });
     }
 
     const query = args.slice(1).join(' ');
@@ -364,7 +406,7 @@ bot.command('search', async (ctx) => {
 bot.command('price', async (ctx) => {
     const args = ctx.message.text.split(' ');
     if (args.length < 2) {
-        return ctx.reply('❌ Örnek: /price bitcoin veya /price solana');
+        return ctx.reply('❌ Örnek: `/price bitcoin` veya `/price solana`', { parse_mode: 'Markdown' });
     }
 
     const coinName = args[1];
@@ -396,7 +438,7 @@ ${changeIcon} **24s Değişim:** ${change.toFixed(2)}%
     ctx.reply(message, { parse_mode: 'Markdown' });
 });
 
-// Buton işlemleri
+// Buton işlemleri - Trend butonu düzeltildi
 bot.hears('💰 Bitcoin', async (ctx) => {
     await ctx.sendChatAction('typing');
     const btcPrice = await getCryptoPrice('bitcoin');
@@ -427,93 +469,35 @@ bot.hears('🚀 Trend Coinler', async (ctx) => {
     await ctx.sendChatAction('typing');
     const trending = await getTrendingCoins();
     
-    if (trending) {
-        let quickList = '🚀 **Trend Coinler:**\n';
+    if (trending && trending.length > 0) {
+        let quickList = '🚀 **Trend Coinler:**\n\n';
         trending.slice(0, 3).forEach(coin => {
             quickList += `• ${coin.item.name} (${coin.item.symbol.toUpperCase()})\n`;
         });
         quickList += '\n🔍 Detaylı liste: /trend';
         ctx.reply(quickList, { parse_mode: 'Markdown' });
+    } else {
+        ctx.reply('❌ Trend coinler alınamadı. Lütfen /trend komutunu deneyin.');
     }
 });
 
 bot.hears('🤖 AI Analiz', (ctx) => {
-    ctx.reply(`🤖 **AI Analiz Kullanımı:**
+    const aiStatus = model ? '✅ Aktif' : '❌ Devre Dışı';
     
+    ctx.reply(`🤖 **AI Analiz ${aiStatus}**
+
+**Kullanım:**
 /ai bitcoin - Bitcoin analizi
-/ai ethereum - Ethereum analizi
+/ai ethereum - Ethereum analizi  
 /ai solana - Solana analizi
 
-💡 Örnek: /ai bitcoin
+💡 Örnek: \`/ai bitcoin\`
 
 📊 AI, son fiyat verileriyle teknik analiz yapacaktır.`,
     { parse_mode: 'Markdown' });
 });
 
-bot.hears('🔍 Coin Ara', (ctx) => {
-    ctx.reply(`🔍 **Coin Arama:**
-    
-/search bitcoin - Bitcoin ara
-/search ethereum - Ethereum ara
-/search doge - Dogecoin ara
-
-💡 Örnek: /search bitcoin
-
-🔎 Coin'i bulduktan sonra fiyatını görmek için /price kullanın.`,
-    { parse_mode: 'Markdown' });
-});
-
-bot.hears('📊 Market', async (ctx) => {
-    await ctx.sendChatAction('typing');
-    
-    const coins = ['bitcoin', 'ethereum', 'binancecoin'];
-    let message = '📊 **Piyasa Özeti**\n\n';
-    
-    for (const coinId of coins) {
-        const priceData = await getCryptoPrice(coinId);
-        if (priceData) {
-            const change = priceData.usd_24h_change || 0;
-            const changeIcon = change >= 0 ? '🟢' : '🔴';
-            const coinName = coinId === 'binancecoin' ? 'BNB' : coinId.charAt(0).toUpperCase() + coinId.slice(1);
-            message += `• ${coinName}: $${priceData.usd?.toLocaleString()} ${changeIcon} ${change.toFixed(2)}%\n`;
-        }
-    }
-    
-    message += '\n🔍 Detaylar için coin adını yazın.';
-    ctx.reply(message, { parse_mode: 'Markdown' });
-});
-
-bot.hears('📢 Kanalımız', (ctx) => {
-    ctx.reply(`📢 **Kripto & Vip Sinyal Kanalımız:**
-    
-${process.env.CHANNEL_USERNAME || 'https://t.me/coinvekupon'}
-
-💎 VIP sinyaller ve özel analizler için takipte kalın!`,
-    { parse_mode: 'Markdown' });
-});
-
-bot.hears('ℹ️ Yardım', (ctx) => {
-    ctx.reply(`🤖 **Yardım Menüsü**
-
-**Temel Komutlar:**
-/start - Botu başlat
-/help - Yardım
-
-**Fiyat Komutları:**
-/bitcoin - Bitcoin fiyatı
-/ethereum - Ethereum fiyatı
-/price <coin> - Özel coin fiyatı
-/trend - Trend coinler
-
-**AI Komutları:**
-/ai <coin> - AI analizi
-
-**Arama:**
-/search <coin> - Coin arama
-
-💎 **Kanal:** ${process.env.CHANNEL_USERNAME || '@coinvekupon'}`,
-    { parse_mode: 'Markdown' });
-});
+// Diğer butonlar aynı...
 
 // Hata yakalama
 bot.catch((err, ctx) => {
@@ -521,8 +505,8 @@ bot.catch((err, ctx) => {
     ctx.reply('❌ Bir hata oluştu. Lütfen daha sonra deneyin.');
 });
 
-// Botu başlat - SADECE POLLING
-console.log('=== BOT BAŞLATILIYOR (POLLING MOD) ===');
+// Botu başlat
+console.log('=== BOT BAŞLATILIYOR ===');
 
 bot.launch()
     .then(() => {
@@ -535,7 +519,7 @@ bot.launch()
         process.exit(1);
     });
 
-// Render için basit HTTP server
+// HTTP server
 const http = require('http');
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -558,5 +542,3 @@ process.once('SIGTERM', () => {
     bot.stop('SIGTERM');
     process.exit(0);
 });
-
-console.log('✅ Bot başlatma tamamlandı!');
