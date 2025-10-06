@@ -1,4 +1,15 @@
-node_modules/
-.env
+# Bağımlılıklar ve log dosyaları
+node_modules
+npm-debug.log
 *.log
+
+# İşletim sistemi dosyaları
 .DS_Store
+Thumbs.db
+
+# Hassas bilgiler ve ortam değişkenleri
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
